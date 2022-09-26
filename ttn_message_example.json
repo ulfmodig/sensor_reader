@@ -1,0 +1,67 @@
+{
+  "end_device_ids": {
+    "device_id": "foundation-home",
+    "application_ids": { "application_id": "modigdesign-home" },
+    "dev_addr": "260B6914"
+  },
+  "correlation_ids": [ "as:up:01GCP2Y14WV5V72HEDPGZDACPB", "gs:conn:01GCF2RES6BEA9GRY6DZK84W4T", "gs:up:host:01GCF2RESFZ5AGT6J40XXNA1JP", "gs:uplink:01GCP2Y0YB58STYE5MWGYD6KYY", "ns:uplink:01GCP2Y0YBKCKAMY2EBA9C6SV9", "rpc:/ttn.lorawan.v3.GsNs/HandleUplink:01GCP2Y0YBE7BQG4M7X0CR2QKP", "rpc:/ttn.lorawan.v3.NsAs/HandleUplink:01GCP2Y14VE5MYT5V57VFK626D" ],
+  "received_at": "2022-09-11T10:53:42.428672865Z",
+  "uplink_message": {
+    "f_port": 1,
+    "f_cnt": 24,
+    "frm_payload": "AGcBAwBoUwB0AWoAyV0=",
+    "decoded_payload": {
+      "battery": 93,
+      "humidity": 41.5,
+      "temperature": 25.9,
+      "voltage": 3.62
+    },
+    "rx_metadata": [
+      {
+        "gateway_ids": {
+          "gateway_id": "modigdesign-gw",
+          "eui": "DCA632FFFE38A6A8"
+        },
+        "time": "2022-09-11T10:53:42Z",
+        "timestamp": 3134282147,
+        "rssi": -67,
+        "channel_rssi": -67,
+        "snr": 8.75,
+        "location": {
+          "latitude": 59.37292197215699,
+          "longitude": 17.20995495392049,
+          "altitude": 20,
+          "source": "SOURCE_REGISTRY"
+        },
+        "uplink_token": "ChwKGgoObW9kaWdkZXNpZ24tZ3cSCNymMv/+OKaoEKOzxdYLGgsItvz2mAYQlvCzaCC4yZiOnLk1",
+        "received_at": "2022-09-11T10:53:42.218953750Z"
+      }
+    ],
+    "settings": {
+      "data_rate": {
+        "lora": {
+          "bandwidth": 125000,
+          "spreading_factor": 7
+        }
+      },
+      "coding_rate": "4/5",
+      "frequency": "867100000",
+      "timestamp": 3134282147
+    },
+    "received_at": "2022-09-11T10:53:42.219896287Z",
+    "consumed_airtime": "0.066816s",
+    "version_ids": {
+      "brand_id": "heltec",
+      "model_id": "wifi-lora-32-class-c-abp",
+      "hardware_version": "_unknown_hw_version_",
+      "firmware_version": "1.0",
+      "band_id": "EU_863_870"
+    },
+    "network_ids": {
+      "net_id": "000013",
+      "tenant_id": "ttn",
+      "cluster_id": "eu1",
+      "cluster_address": "eu1.cloud.thethings.network"
+    }
+  }
+}
