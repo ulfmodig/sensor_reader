@@ -12,9 +12,17 @@
 // #define BMP_SENSOR_ACTIVE x
 // #define VBAT_SENSOR_ACTIVE x
 
+//#define TTN_ACTIVE
+#define MQTT_ACTIVE
+#define WIFI_SSID "grunden"
+#define WIFI_PW "Ulf12345"
+#define MQTT_HOST "195.67.216.71"
+
 //---------------------------------------------------------------------------------------------------------------
 // Libraries
 //---------------------------------------------------------------------------------------------------------------
+#include <ArduinoJson.hpp>
+#include <ArduinoJson.h>
 #include <modigdesign_oled.h>
 #include <modigdesign_ttn.h>
 #include <modigdesign_debug.h>
@@ -52,7 +60,7 @@ static const uint8_t SENSOR_TIMEOUT_S = 120;	// Send error and goto sleep when s
 //---------------------------------------------------------------------------------------------------------------
 // Debug
 //---------------------------------------------------------------------------------------------------------------
-static const uint32_t SERIAL_BAUDRATE = 115200;	
+static const uint32_t SERIAL_BAUDRATE = 115200;
 static const modigdesign_debug_class::debug_levels_t DEBUG_LEVEL = modigdesign_debug_class::LEVEL_VERBOSE;
 
 //---------------------------------------------------------------------------------------------------------------
@@ -92,6 +100,11 @@ int battery_status;
 float bmp_temperature;
 float bmp_pressure;
 
+String wifi_ssid;
+String wifi_pw;
+String mqtt_host;
+
+
 
 //---------------------------------------------------------------------------------------------------------------
 // Set running mode
@@ -102,7 +115,7 @@ void set_running_mode() {
 	uint64_t status = esp_sleep_get_ext1_wakeup_status();
 	switch (wakeup_reason)
 	{
-	case ESP_SLEEP_WAKEUP_EXT0: 
+	case ESP_SLEEP_WAKEUP_EXT0:
 		DEBUG_I("ESP_SLEEP_WAKEUP_EXT0");
 		running_mode = MANUAL_MODE;
 		break;
@@ -111,7 +124,7 @@ void set_running_mode() {
 		running_mode = MANUAL_MODE;
 		break;
 	case ESP_SLEEP_WAKEUP_TIMER:
-		DEBUG_I("ESP_SLEEP_WAKEUP_TIMER"); 
+		DEBUG_I("ESP_SLEEP_WAKEUP_TIMER");
 		running_mode = TIMER_MODE;
 		break;
 	case ESP_SLEEP_WAKEUP_TOUCHPAD:
@@ -144,7 +157,7 @@ void goto_sleep(bool permanent = false) {
 }
 
 //---------------------------------------------------------------------------------------------------------------
-// Send read values via TTN
+// Send read values
 //---------------------------------------------------------------------------------------------------------------
 void send_values() {
 
@@ -155,17 +168,29 @@ void send_values() {
 		// OLED->alert("LoRa message...");
 	}
 
-	// Prepare TTN message
+	// Prepare message
+#ifdef TTN_ACTIVE
 	DEBUG_V("New TTN message...");
 	TTN->clear_message();
+#endif
+#ifdef MQTT_ACTIVE
+	StaticJsonDocument<200> mqtt_message;
+	mqtt_message["sensor_reader"]["device_id"] = board_data.end_device_id;
+#endif
 
 	// DHT values
 #ifdef DHT_SENSOR_ACTIVE
 	dht_temperature = DHT->get_temperature_value();
 	dht_humidity = DHT->get_humidity_value();
 	DEBUG_I("Sending DHT values Temperature: %.1f (C) Humidity: %.0f (%%)", dht_temperature, dht_humidity);
+#ifdef TTN_ACTIVE
 	TTN->add_temperature(dht_temperature)
 		.add_relative_humidity(dht_humidity);
+#endif
+#ifdef MQTT_ACTIVE
+	mqtt_message["sensor_reader"]["temperature"] = dht_temperature;
+	mqtt_message["sensor_reader"]["humidity"] = dht_humidity;
+#endif
 	DHT->reset_readings();
 #endif
 
@@ -174,8 +199,14 @@ void send_values() {
 	htu_temperature = HTU21D->get_temperature_value();
 	htu_humidity = HTU21D->get_humidity_value();
 	DEBUG_I("Sending HTU21D values Temperature: %.1f (C) Humidity: %.0f (%%)", htu_temperature, htu_humidity);
+#ifdef TTN_ACTIVE
 	TTN->add_temperature(htu_temperature)
 		.add_relative_humidity(htu_humidity);
+#endif
+#ifdef MQTT_ACTIVE
+	mqtt_message["sensor_reader"]["temperature"] = htu_temperature;
+	mqtt_message["sensor_reader"]["humidity"] = htu_humidity;
+#endif
 	HTU21D->reset_readings();
 #endif
 
@@ -184,7 +215,9 @@ void send_values() {
 	bmp_temperature = BMP->get_temperature_value();
 	bmp_pressure = BMP->get_pressure_value();
 	DEBUG_I("Sending BMP values Temperature: %.1f (C) Pressure: %.0f (%%)", bmp_temperature, bmp_pressure);
-	TTN->add_barometric_pressure(bmp_pressure/100);
+#ifdef TTN_ACTIVE
+	TTN->add_barometric_pressure(bmp_pressure / 100);
+#endif
 	BMP->reset_readings();
 #endif
 
@@ -193,14 +226,27 @@ void send_values() {
 	battery_voltage = VBAT->get_voltage();
 	battery_status = VBAT->get_percentage();
 	DEBUG_I("Sending VBAT values Voltage: %.1f (V) Status: %d (%%)", battery_voltage, battery_status);
+#ifdef TTN_ACTIVE
 	TTN->add_voltage(battery_voltage)
 		.add_battery(battery_status)
 		.add_error(battery_status > LOW_BATTERY_LIMIT ? modigdesign_ttn_class::OK : modigdesign_ttn_class::LOW_BATTERY);
+#endif
+#ifdef MQTT_ACTIVE
+	mqtt_message["sensor_reader"]["battery"] = battery_voltage;
+	mqtt_message["sensor_reader"]["voltage"] = battery_status;
+#endif
 	VBAT->reset_readings();
 #endif 
 
 	// Send the message
+#ifdef TTN_ACTIVE
 	TTN->send_message();
+#endif
+#ifdef MQTT_ACTIVE
+	String json = "";
+	serializeJson(mqtt_message, json);
+	WIFI->mqtt_publish("sensor_reader", json);
+#endif
 
 }
 
@@ -232,7 +278,7 @@ void display_on_oled() {
 			.print(1, "BMP Values")
 			.set_font_size(OLEDDISPLAY_FONT_SIZE::SMALL)
 			.printf_cols(3, "Temperature:", "%.1f (C)", bmp_temperature)
-			.printf_cols(4, "Pressure:", "%.0f (hPa)", bmp_pressure/100);
+			.printf_cols(4, "Pressure:", "%.0f (hPa)", bmp_pressure / 100);
 		break;
 #endif
 #ifdef HTU_SENSOR_ACTIVE
@@ -350,8 +396,34 @@ void setup() {
 	WiFi.mode(WIFI_STA);
 	board_data = modigdesign_secrets->get_board_data(WiFi.macAddress());
 
+	// Connect credentials
+
+#ifdef WIFI_SSID
+	wifi_ssid = WIFI_SSID;
+	wifi_pw = WIFI_PW;
+#else
+	wifi_ssid = modigdesign_secrets->get_wifi_ssid();
+	wifi_pw = modigdesign_secrets->get_wifi_password();
+#endif
+#ifdef MQTT_HOST
+	mqtt_host = MQTT_HOST;
+#else
+	mqtt_host = SECRETS->get_mqtt_host();
+#endif
+	
+#ifdef MQTT_ACTIVE
+	WIFI->set_wifi_ssid(wifi_ssid)
+		.set_wifi_password(wifi_pw)
+		.wifi_begin();
+	WIFI->set_mqtt_host(mqtt_host)
+		.mqtt_begin();
+#endif
+
+
 	// Start TTN
+#ifdef TTN_ACTIVE
 	TTN->set_frame_counter(800).begin(board_data.dev_addr, board_data.nwk_skey, board_data.app_skey);
+#endif
 
 	// DHT Sensor
 #ifdef DHT_SENSOR_ACTIVE
@@ -382,10 +454,6 @@ void setup() {
 		.set_samples(20)
 		.set_read_interval(READ_INTERVAL_S)
 		.begin();
-	delay(2000);
-	while (!VBAT->is_readings_ready())
-		VBAT->loop();
-	VBAT->reset_readings();
 #else
 	pinMode(GPIO_VEXT, OUTPUT);
 	digitalWrite(GPIO_VEXT, LOW);
@@ -440,7 +508,11 @@ modigdesign_funcs_class::every_class every;
 modigdesign_funcs_class::after_class after;
 void loop() {
 
-	// When ready, send via TTN. Only one measurement is done.
+#ifdef MQTT_ACTIVE
+	WIFI->loop();
+#endif
+
+	// When ready, send via TTN or MQTT. Only one measurement is done.
 	if (reading_count == 0 && background_measurements()) {
 		reading_count++;
 		DEBUG_I("Readings: %d", reading_count);
